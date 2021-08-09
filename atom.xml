@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://daning.netlify.app</id>
     <title>鼓捣猫宁</title>
-    <updated>2021-08-09T11:12:38.717Z</updated>
+    <updated>2021-08-09T11:17:58.668Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://daning.netlify.app"/>
     <link rel="self" href="https://daning.netlify.app/atom.xml"/>
@@ -17,11 +17,11 @@
         </link>
         <updated>2021-08-08T13:59:20.000Z</updated>
         <summary type="html"><![CDATA[<p>在arm64架构之前，isa就是一个普通的指针，存储着Class、Meta-Class对象的内存地址；<br>
-从arm64架构开始，对isa进行了优化，变成了一个共用体（** union **）结构，还使用位域来存储更多的信息。<br>
+从arm64架构开始，对isa进行了优化，变成了一个共用体 &quot;union&quot;  结构，还使用位域来存储更多的信息。<br>
 所以，为什么要使用这种方式来优化呢？</p>
 ]]></summary>
         <content type="html"><![CDATA[<p>在arm64架构之前，isa就是一个普通的指针，存储着Class、Meta-Class对象的内存地址；<br>
-从arm64架构开始，对isa进行了优化，变成了一个共用体（** union **）结构，还使用位域来存储更多的信息。<br>
+从arm64架构开始，对isa进行了优化，变成了一个共用体 &quot;union&quot;  结构，还使用位域来存储更多的信息。<br>
 所以，为什么要使用这种方式来优化呢？</p>
 <!-- more -->
 <hr>
