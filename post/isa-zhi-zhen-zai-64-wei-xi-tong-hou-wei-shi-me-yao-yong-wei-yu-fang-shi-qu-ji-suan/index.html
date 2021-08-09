@@ -78,7 +78,7 @@
         
         <li class="nav-item">
           <div class="gridea-search-container">
-            <form id="gridea-search-form" style="position: relative" data-update="1628432839182"
+            <form id="gridea-search-form" style="position: relative" data-update="1628507545723"
               action="/search/index.html">
               <input class="search-input" autocomplete="off" spellcheck="false" name="q" placeholder="搜索文章" />
               <i class="fas fa-search gt-c-content-color-first" style="position: absolute; top: 9px; left: 10px;"></i>
@@ -128,7 +128,7 @@
         
         <li class="nav-item">
           <div class="gridea-search-container">
-            <form id="gridea-search-form" style="position: relative" data-update="1628432839182"
+            <form id="gridea-search-form" style="position: relative" data-update="1628507545723"
               action="/search/index.html">
               <input class="search-input" autocomplete="off" spellcheck="false" name="q" placeholder="搜索文章" />
               <i class="fas fa-search gt-c-content-color-first" style="position: absolute; top: 9px; left: 10px;"></i>
@@ -159,7 +159,7 @@
               <h1>isa指针在64位系统后为什么要用位域方式去计算？</h1>
               <span class="meta">
                 Posted on
-                2021-08-08，1 min read
+                2021-08-08，5 min read
               </span>
             </div>
           
@@ -178,26 +178,195 @@
 从arm64架构开始，对isa进行了优化，变成了一个共用体（** union **）结构，还使用位域来存储更多的信息。<br>
 所以，为什么要使用这种方式来优化呢？</p>
 <!-- more -->
-<h2 id="1-举个例子person">1. 举个例子：Person</h2>
-<pre><code class="language-objc">@interface Person : NSObject
-
+<hr>
+<ul>
+<li>首先我们看下64位系统下isa指针的结构</li>
+</ul>
+<figure data-type="image" tabindex="1"><img src="https://z3.ax1x.com/2021/08/09/f847dA.png" alt="isa指针结构" loading="lazy"></figure>
+<ul>
+<li>结论：使用共用体 <strong>union</strong>，可以在有限的空间内，同样是8个字节，我们可以存储更多的信息</li>
+</ul>
+<hr>
+我们以Person对象为例，来逐步了解 isa 使用 union 的优化方式；
+<h2 id="1-普通的person对象">1. 普通的Person对象</h2>
+<p>我们以Person这个对象为例:假设它有3个成员变量，tail、rich、handsome，那么正常情况下它需要占用16个字节；</p>
+<pre><code>@interface Person : NSObject
 @property (nonatomic, assign) BOOL tall;
 @property (nonatomic, assign) BOOL rich;
 @property (nonatomic, assign) BOOL handsome;
-
 @end
 </code></pre>
-<p>我们以Person这个对象为例:假设它有3个成员变量，tail、rich、handsome，那么正常情况下它需要占用16个字节；</p>
+<p>3个成员变量占用3个字节，isa指针占用8个字节，所以一共占用11个字节，内存对齐后，总共占用16个字节</p>
 <pre><code>NSLog(@&quot;正常的 Person 对象占用：%zd 个字节&quot;,class_getInstanceSize([Person class]));
-输出：正常的 Person 对象占用：16 个字节
+// 输出：正常的 Person 对象占用：16 个字节
+</code></pre>
+<h2 id="2-以位运算的方式优化">2. 以位运算的方式优化</h2>
+<p>1个成员变量_tallRichHandsome 占用1个字节，isa指针8个字节，内存对其后，总共占用16个字节；</p>
+<ul>
+<li>
+<p>我们不声明其成员变量，直接创建对应的方法;</p>
+<pre><code>@interface Person : NSObject
+- (void)setTall:(BOOL)tall;
+- (void)setRich:(BOOL)rich;
+- (void)setHandsom:(BOOL)handsome;
 
-( 3个成员变量占用3个字节，isa指针占用8个字节，所以一共占用11个字节，内存对齐后，总共占用16个字节 )
+- (BOOL)isTall;
+- (BOOL)isRich;
+- (BOOL)isHandsome;
+@end
+</code></pre>
+</li>
+<li>
+<p>声明一个char类型的对象，用来按位存储tall、rich、handsome</p>
+<pre><code>@interface Person(){
+    char _tallRichHandsome; // 0b 0000 0111 ; 占1个字节
+}
+@end
+</code></pre>
+</li>
+<li>
+<p>通过位运算，实现set、get方法</p>
+<pre><code>#define TallMask (1&lt;&lt;0) // 0000 0001 (掩码)
+#define RichMask (1&lt;&lt;1) // 0000 0010
+#define HandsomeMask (1&lt;&lt;2) // 0000 0100
+
+@interface Person(){
+    char _tallRichHandsome; // 0b 0000 0111 ; 占1个字节
+}
+@end
+
+@implementation Person
+- (void)setTall:(BOOL)tall{
+    if (tall) {
+        _tallRichHandsome |= TallMask; // 按位或
+    } else {
+        _tallRichHandsome &amp;= ~TallMask; // 取反后按位与
+    }
+}
+- (void)setRich:(BOOL)rich{
+    // 同setTall方法...
+}
+- (void)setHandsome:(BOOL)handsome{
+    // 同setTall方法...
+}
+
+// 跟掩码进行与运算，再取2次反后，结果即为期待值（只要大于0，则为YES）
+- (BOOL)isTall{
+    return !!(_tallRichHandsome &amp; TallMask);
+}
+- (BOOL)isRich{
+    return !!(_tallRichHandsome &amp; RichMask);
+}
+- (BOOL)isHandsome{
+    return !!(_tallRichHandsome &amp; HandsomeMask);
+}
+@end
+</code></pre>
+</li>
+</ul>
+<h2 id="3-利用结构体继续优化-位域">3. 利用结构体继续优化 (位域)</h2>
+<ul>
+<li>
+<p>利用结构体 代替 char类型的 _tallRichHandsome，然后利用<strong>位域</strong>，保证_tallRichHandsome仅占1个字节（不然的话，每个char都占1个字节，一共又占用3个字节了）；</p>
+<pre><code>@interface Person(){
+    struct {
+        char tall : 1; // :1 位域，代表只占1位
+        char rich : 1;
+        char handsome : 1;
+    } _tallRichHandsome; // 按照先后顺序从右向左排 0b 0000 0000
+}
+@end
+
+@implementation Person
+- (void)setTall:(BOOL)tall{
+    _tallRichHandsome.tall = tall;
+}
+- (void)setRich:(BOOL)rich{
+    _tallRichHandsome.rich = rich;
+}
+- (void)setHandsome:(BOOL)handsome{
+    _tallRichHandsome.handsome = handsome;
+}
+
+- (BOOL)isTall{
+    return _tallRichHandsome.tall;
+}
+- (BOOL)isRich{
+    return _tallRichHandsome.rich;
+}
+- (BOOL)isHandsome{
+    return _tallRichHandsome.handsome;
+}
+@end
+</code></pre>
+</li>
+<li>
+<p>此时输出，会发现BOOL输出了-1，打断点发现其为255；<br>
+原因是 tall  只占1个二进制位，即为0b1，return tall 的时候，强制转为 8位 的 BOOL 类型，程序会默认按照自己的规则转，结果转成了 0b 1111 1111 （255），最高位为1，所以为 -1 的补码，所以输出了 -1 （减1后得反码，再取反后得原码）</p>
+<pre><code>Person *person = [[Person alloc] init];
+person.tall = YES;
+person.rich = YES;
+person.handsome = NO;
+
+NSLog(@&quot;tall: %d ; rich: %d ; handsome: %d&quot;,person.isTall,person.isRich,person.isHandsome); 
+// tall: -1 ; rich: -1 ; handsome: 0
+
+BOOL isTall = person.isTall; // 255
+</code></pre>
+<p>解决方式为：</p>
+<pre><code>- (BOOL)isTall{
+    return !!_tallRichHandsome.tall; // 取值的时候，2次取反即可
+} 
+</code></pre>
+</li>
+</ul>
+<h2 id="4-用-union-共用体-优化">4. 用 union 共用体 优化</h2>
+<p>因为共用体内共用同一块内存，所以 bits 和 struct 结构体 共用 他们最大的内存：1个字节；实际上和  <strong>&quot;2. 以位运算的方式优化&quot;</strong> 是一样的</p>
+<pre><code>@interface Person(){
+    union { // 共用体
+        char bits;
+        struct { // 增加可读性，无任何作用，删除也不影响结果
+            char tall : 1;
+            char rich : 1;
+            char handsome : 1;
+        };
+    } _tallRichHandsome;
+}
+@end
+
+@implementation Person
+- (void)setTall:(BOOL)tall{
+    if (tall) {
+        _tallRichHandsome.bits |= TallMask;
+    } else {
+        _tallRichHandsome.bits &amp;= ~TallMask;
+    }
+}
+- (void)setRich:(BOOL)rich{
+    // 同setTall方法...
+}
+- (void)setHandsome:(BOOL)handsome{
+    // 同setTall方法...
+}
+- (BOOL)isTall{
+    return !!(_tallRichHandsome.bits &amp; TallMask);
+}
+- (BOOL)isRich{
+    return !!(_tallRichHandsome.bits &amp; RichMask);
+}
+- (BOOL)isHandsome{
+    return !!(_tallRichHandsome.bits &amp; HandsomeMask);
+}
+@end
 </code></pre>
 
           <div class="toc-container"><ul class="markdownIt-TOC">
 <li>
 <ul>
-<li><a href="#1-%E4%B8%BE%E4%B8%AA%E4%BE%8B%E5%AD%90person">1. 举个例子：Person</a></li>
+<li><a href="#1-%E6%99%AE%E9%80%9A%E7%9A%84person%E5%AF%B9%E8%B1%A1">1. 普通的Person对象</a></li>
+<li><a href="#2-%E4%BB%A5%E4%BD%8D%E8%BF%90%E7%AE%97%E7%9A%84%E6%96%B9%E5%BC%8F%E4%BC%98%E5%8C%96">2. 以位运算的方式优化</a></li>
+<li><a href="#3-%E5%88%A9%E7%94%A8%E7%BB%93%E6%9E%84%E4%BD%93%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96-%E4%BD%8D%E5%9F%9F">3. 利用结构体继续优化 (位域)</a></li>
+<li><a href="#4-%E7%94%A8-union-%E5%85%B1%E7%94%A8%E4%BD%93-%E4%BC%98%E5%8C%96">4. 用 union 共用体 优化</a></li>
 </ul>
 </li>
 </ul>
